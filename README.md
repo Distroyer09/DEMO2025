@@ -77,3 +77,255 @@ CONFIG_IPV6=no
 <code>
 172.16.5.1/28
 </code>
+
+На ваших машинах IP адресация уже настроена, так что вам не придется, её настраивать. 
+
+Перейдем к IPTables
+
+## IPTables
+
+### ISP
+<code>
+iptables -t nat -A POSTROUTING -s 172.16.4.0/28 -o ens33 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 172.16.5.0/28 -o ens33 -j MASQUERADE
+</code>
+Затем сохраняем.
+<code>
+iptables-save >> /etc/sysconfig/iptables
+</code>
+Перезапускаем
+<code>
+systemctl enable --now iptables
+systemctl restart iptables
+systemctl status iptables
+</code>
+Проверьте файл resolv.conf, там должен быть укзан IP яндекса:
+<code>
+77.88.8.8
+77.88.8.1
+</code>
+Если работает, то пропингуйте восьмерки с любого RTR если пингуются, все хорошо, если нет, чините как нибудь, проверьте правильность написания, перезагрузите iptables, network или вообще всю машину.
+
+### BR-RTR
+<code>
+iptables -t nat -A POSTROUTING -s 192.168.4.0/27 -o ens36 -j MASQUERADE
+iptables-save >> /etc/sysconfig/iptables
+</code>
+Имейте в виду что ваша сеть будет отличаться по IP адресу,  маске подсети и порту, проверьте это перед вводом.
+<code>
+systemctl enable --now iptables
+systemctl restart iptables
+systemctl status iptables
+</code>
+Проверяем пингуя восьмерки с BR-SRV
+
+### HQ-RTR
+<code>
+iptables -t nat -A POSTROUTING -s 192.168.1.0/26 -o ens36 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 192.168.2.0/28 -o ens36 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 192.168.3.0/29 -o ens36 -j MASQUERADE
+iptables-save >> /etc/sysconfig/iptables
+</code>
+
+<code>
+systemctl enable --now iptables
+systemctl restart iptables
+systemctl status iptables
+</code>
+
+Проверяем пингуя восьмерки с HQ-SRV
+
+## Настройка тоннеля
+
+### HQ-RTR
+
+Переходим в папку интерфейсов и создаем интерфейс с необходимыми файлами.
+<code>
+cd /etc/net/ifaces/
+mkdir gre1
+cd gre1
+vim options
+</code>
+options
+<code>
+TUNLOCAL=172.16.4.2
+TUNREMOTE=172.16.5.2
+TUNTYPE=gre
+TYPE=iptun
+TUNTTL=64 
+TUNMTU=1476
+TUNOPTIONS='ttl 64'
+DISABLE=no
+</code>
+Теперь создаем файл ipv4address
+<code>
+vim ipv4address
+</code>
+И укзываем ip 
+<code>
+10.10.10.1/30
+</code>
+Перезапускаем сеть
+<code>
+systemctl restart network
+</code>
+Теперь проверяем ip a и смотрим появились ли порты gre. Если да, то идем дальше если нет, перезагрузите все что можете и проверьте то как вы это написали, возможно где то дпущена опечатка.
+
+Теперь, разрешим прием-передачу пакетов по 47 порту через iptables
+<code>
+iptables -I INPUT -i ens36 -p 47 -j ACCEPT
+iptables -I OUTPUT -o ens36 -p 47 -j ACCEPT
+iptables-save >> /etc/sysconfig/iptables
+systemctl restart iptables
+iptables-save
+</code>
+Проверьте настройки
+
+### BR-RTR
+
+Переходим в папку интерфейсов и создаем интерфейс с необходимыми файлами.
+<code>
+cd /etc/net/ifaces/
+mkdir gre1
+cd gre1
+vim options
+</code>
+options
+<code>
+TUNLOCAL=172.16.5.2
+TUNREMOTE=172.16.4.2
+TUNTYPE=gre
+TYPE=iptun
+TUNTTL=64 
+TUNMTU=1476
+TUNOPTIONS='ttl 64'
+DISABLE=no
+</code>
+Теперь создаем файл ipv4address
+<code>
+vim ipv4address
+</code>
+И укзываем ip 
+<code>
+10.10.10.2/30
+</code>
+Перезапускаем сеть
+<code>
+systemctl restart network
+</code>
+Теперь проверяем ip a и смотрим появились ли порты gre. Если да, то идем дальше если нет, перезагрузите все что можете и проверьте то как вы это написали, возможно где то дпущена опечатка.
+
+Теперь, разрешим прием-передачу пакетов по 47 порту через iptables
+<code>
+iptables -I INPUT -i ens36 -p 47 -j ACCEPT
+iptables -I OUTPUT -o ens36 -p 47 -j ACCEPT
+iptables-save >> /etc/sysconfig/iptables
+systemctl restart iptables
+iptables-save
+</code>
+Проверьте настройки и пропингуйте тонель HQ-RTR# <code> ping 10.10.10.2 </code>
+То же самое с BR-RTR# <code> ping 10.10.10.1 </code>
+Пингуется? Значит работает.
+
+## FRR/OSPF
+
+### HQ-RTR
+
+Установим FRR
+<code>
+apt-get install frr
+</code>
+Подтверждаем и после установки переходим в файл конфигурации
+<code>
+vim /etc/frr/daemons
+</code>
+Тут меняем строчку с ospfd=no на ospfd=yes. Затем перезапусм и проверяем статус
+<code>
+systemctl restart frr
+systemctl status frr
+</code>
+Теперь переходим в vtysh и вводим следующие команды(IP адреса и маски будут отличаться)
+<code>
+conf t
+do sh int br
+router ospf
+network 10.10.10.0/30 area 0
+network 192.168.1.0/26 area 0
+network 192.168.2.0/28 area 0
+network 192.168.3.0/29 area 0
+do wr mem
+exit
+int gre1
+ip ospf authentication messasge-digest
+ip ospf message-digest-key 1 md5 P@ssw0rd
+do wr mem
+exit
+do show run
+</code>
+
+Теперь выходим из этого режима и перезапускаем 
+<code>
+systemctl enable --now frr
+systemctl restart frr
+</code>
+
+### HQ-RTR
+
+Установим FRR
+<code>
+apt-get install frr
+</code>
+Подтверждаем и после установки переходим в файл конфигурации
+<code>
+vim /etc/frr/daemons
+</code>
+Тут меняем строчку с ospfd=no на ospfd=yes. Затем перезапусм и проверяем статус
+<code>
+systemctl restart frr
+systemctl status frr
+</code>
+Теперь переходим в vtysh и вводим следующие команды(IP адреса и маски будут отличаться)
+<code>
+conf t
+do sh int br
+router ospf
+network 10.10.10.0/30 area 0
+network 192.168.4.0/27 area 0
+do wr mem
+exit
+int gre1
+ip ospf authentication messasge-digest
+ip ospf message-digest-key 1 md5 P@ssw0rd
+do wr mem
+exit
+do show run
+</code>
+
+Теперь выходим из этого режима и перезапускаем 
+<code>
+systemctl enable --now frr
+systemctl restart frr
+</code>
+
+### OSPF проверка
+
+Теперь переходим в vtysh и проверяем
+<code>
+conf t
+do show ip ospf neighbor
+</code>
+В командной строке самих роутеров traceroute 192.168.4.2 Эта команда выполняется какое то время, так что подождите пока кончится проверка.
+
+## DNSMASQ
+
+### HQ-SRV
+
+<code>
+
+</code>
+
+
+
+
+
+
