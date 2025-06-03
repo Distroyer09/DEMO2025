@@ -75,7 +75,7 @@ CONFIG_IPV6=no
 <code>vim /etc/net/ifaces/ens38/ipv4address</code>
 Сюда копируем настройку(Имейте в виду что ваше задание может отличаться)
 <code>
-172.16.5.1/28
+172.16.50.1/28
 </code>
 
 На ваших машинах IP адресация уже настроена, так что вам не придется, её настраивать. 
@@ -86,8 +86,8 @@ CONFIG_IPV6=no
 
 ### ISP
 <code>
-iptables -t nat -A POSTROUTING -s 172.16.4.0/28 -o ens33 -j MASQUERADE
-iptables -t nat -A POSTROUTING -s 172.16.5.0/28 -o ens33 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 172.16.40.0/28 -o ens33 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 172.16.50.0/28 -o ens33 -j MASQUERADE
 </code>
 Затем сохраняем.
 <code>
@@ -108,7 +108,7 @@ systemctl status iptables
 
 ### BR-RTR
 <code>
-iptables -t nat -A POSTROUTING -s 192.168.4.0/27 -o ens36 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 172.16.1.0/27 -o ens36 -j MASQUERADE
 iptables-save >> /etc/sysconfig/iptables
 </code>
 Имейте в виду что ваша сеть будет отличаться по IP адресу,  маске подсети и порту, проверьте это перед вводом.
@@ -121,9 +121,9 @@ systemctl status iptables
 
 ### HQ-RTR
 <code>
-iptables -t nat -A POSTROUTING -s 192.168.1.0/26 -o ens36 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 192.168.1.0/27 -o ens36 -j MASQUERADE
 iptables -t nat -A POSTROUTING -s 192.168.2.0/28 -o ens36 -j MASQUERADE
-iptables -t nat -A POSTROUTING -s 192.168.3.0/29 -o ens36 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 192.168.3.0/30 -o ens36 -j MASQUERADE
 iptables-save >> /etc/sysconfig/iptables
 </code>
 
@@ -148,8 +148,8 @@ vim options
 </code>
 options
 <code>
-TUNLOCAL=172.16.4.2
-TUNREMOTE=172.16.5.2
+TUNLOCAL=172.16.40.2
+TUNREMOTE=172.16.50.2
 TUNTYPE=gre
 TYPE=iptun
 TUNTTL=64 
@@ -192,8 +192,8 @@ vim options
 </code>
 options
 <code>
-TUNLOCAL=172.16.5.2
-TUNREMOTE=172.16.4.2
+TUNLOCAL=172.16.50.2
+TUNREMOTE=172.16.40.2
 TUNTYPE=gre
 TYPE=iptun
 TUNTTL=64 
@@ -250,9 +250,9 @@ conf t
 do sh int br
 router ospf
 network 10.10.10.0/30 area 0
-network 192.168.1.0/26 area 0
+network 192.168.1.0/27 area 0
 network 192.168.2.0/28 area 0
-network 192.168.3.0/29 area 0
+network 192.168.3.0/30 area 0
 do wr mem
 exit
 int gre1
@@ -290,7 +290,7 @@ conf t
 do sh int br
 router ospf
 network 10.10.10.0/30 area 0
-network 192.168.4.0/27 area 0
+network 172.16.1.0/28 area 0
 do wr mem
 exit
 int gre1
@@ -314,18 +314,11 @@ systemctl restart frr
 conf t
 do show ip ospf neighbor
 </code>
-В командной строке самих роутеров traceroute 192.168.4.2 Эта команда выполняется какое то время, так что подождите пока кончится проверка.
+В командной строке самих роутеров traceroute 172.16.1.2 Эта команда выполняется какое то время, так что подождите пока кончится проверка.
 
 ## DNSMASQ
 
 ### HQ-SRV
-
-<code>
-
-</code>
-
-
-
 
 
 
